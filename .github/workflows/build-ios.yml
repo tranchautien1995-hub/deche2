@@ -1,0 +1,94 @@
+name: Build iOS 15.1 IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the verified upstream source and Godot
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=4.7.2-stable
+          base="https://github.com/godotengine/godot-builds/releases/download/$version"
+          cache="$RUNNER_TEMP/aoe2"
+          mkdir -p "$cache"
+          curl -fLsS --retry 3 https://domotix.co/download/3 -o "$cache/source.zip"
+          printf '%s  %s\n' b1a42902fdfc340e0dd1edc9d8eca9420fb56a36db51e0ea922ab746d669e013 "$cache/source.zip" | shasum -a 256 -c
+          unzip -q "$cache/source.zip" -d "$cache"
+          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_macos.universal.zip" -o "$cache/godot.zip"
+          ditto -x -k "$cache/godot.zip" "$cache/editor"
+          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$cache/templates.tpz"
+          template_dir="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          mkdir -p "$template_dir"
+          unzip -j "$cache/templates.tpz" templates/ios.zip -d "$template_dir"
+          "$cache/editor/Godot.app/Contents/MacOS/Godot" --version
+
+      - name: Import resources and export the Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          godot="$cache/editor/Godot.app/Contents/MacOS/Godot"
+          project="$cache/AoE2HDBeta-source/godot_game"
+          mkdir -p "$cache/export"
+          python3 prepare_ios.py "$project"
+          "$godot" --headless --path "$project" --import >"$cache/godot-import.log" 2>&1 || {
+            tail -100 "$cache/godot-import.log"
+            exit 1
+          }
+          if grep -E 'SCRIPT ERROR: Parse Error|Failed to load script' "$cache/godot-import.log"; then
+            exit 1
+          fi
+          "$godot" --headless --path "$project" --export-release "iOS Portable" "$cache/export/AoE2HDMobile.ipa"
+          test -d "$cache/export/AoE2HDMobile.xcodeproj"
+
+      - name: Build and verify arm64 iPhone package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          xcodebuild -version
+          xcodebuild -project "$cache/export/AoE2HDMobile.xcodeproj" -scheme AoE2HDMobile \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$cache/derived" -quiet \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO IPHONEOS_DEPLOYMENT_TARGET=15.1 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= build
+          app="$cache/derived/Build/Products/Release-iphoneos/AoE2HDMobile.app"
+          plist="$app/Info.plist"
+          plutil -lint "$plist"
+          test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
+          test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
+          test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
+          executable="$app/$(plutil -extract CFBundleExecutable raw "$plist")"
+          test "$(xcrun lipo -archs "$executable")" = "arm64"
+          xcrun vtool -show-build "$executable" | tee "$cache/macho.txt"
+          grep -Eq 'platform[[:space:]]+IOS$' "$cache/macho.txt"
+          grep -Eq 'minos[[:space:]]+15\.1$' "$cache/macho.txt"
+          find "$app" -type f -name '*.pck' -size +0c | grep -q .
+          mkdir -p artifact "$cache/package/Payload"
+          cp "$cache/AoE2HDBeta-source/LICENSE" "$app/COPYING.txt"
+          cp "$cache/AoE2HDBeta-source/NOTICE.md" "$app/NOTICE.md"
+          printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
+          ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.0-iOS15.1-TrollStore.ipa"
+          ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
+          unzip -tq "$ipa"
+          (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AoE2HDMobile-iOS15.1-TrollStore
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
