@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from localize_vi import localize
+from mobile_input import apply_mobile
 
 
 def edit(path, replacements):
@@ -71,14 +72,15 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.1"
-application/version="2"
+application/short_version="1.0.2"
+application/version="3"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
 application/additional_plist_content="<key>UIFileSharingEnabled</key><true/><key>LSSupportsOpeningDocumentsInPlace</key><true/>"
 architectures/arm64=true
 """)
+    apply_mobile(project, edit)
     localize(project)
 
 

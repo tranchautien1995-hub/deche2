@@ -36,6 +36,21 @@ jobs:
           unzip -j "$cache/templates.tpz" templates/ios.zip -d "$template_dir"
           "$cache/editor/Godot.app/Contents/MacOS/Godot" --version
 
+      - name: Generate offline Vietnamese voice lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          model=vi_VN-vais1000-medium
+          base=https://huggingface.co/rhasspy/piper-voices/resolve/320d5f7f7751a17ef6512d5c23863056c6a11c0f/vi/vi_VN/vais1000/medium
+          curl -fLsS --retry 3 "$base/$model.onnx?download=true" -o "$cache/$model.onnx"
+          curl -fLsS --retry 3 "$base/$model.onnx.json?download=true" -o "$cache/$model.onnx.json"
+          test "$(md5 -q "$cache/$model.onnx")" = 5e42428c4f6131f75557cf156c9c1526
+          test "$(md5 -q "$cache/$model.onnx.json")" = 5ec9669253541d64ba97f60e422f1ad0
+          python3 -m venv "$cache/voice-env"
+          "$cache/voice-env/bin/pip" install 'piper-tts==1.4.1'
+          "$cache/voice-env/bin/python" unit_voice.py "$cache/AoE2HDBeta-source/godot_game" "$cache/$model.onnx"
+
       - name: Import resources and export the Xcode project
         shell: bash
         run: |
@@ -56,6 +71,8 @@ jobs:
           if grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-first-run.log"; then
             exit 1
           fi
+          "$godot" --headless --path "$project" --quit-after 150 res://tests/lasso.tscn | tee "$cache/godot-input.log"
+          grep -F 'MOBILE INPUT AND VOICE: 0 failures' "$cache/godot-input.log"
           "$godot" --headless --path "$project" --export-release "iOS Portable" "$cache/export/AoE2HDMobile.ipa"
           test -d "$cache/export/AoE2HDMobile.xcodeproj"
 
@@ -75,7 +92,7 @@ jobs:
           plist="$app/Info.plist"
           plutil -lint "$plist"
           test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.1"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.2"
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.tranchautien1995.aoe2hdmobile"
           test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
           test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
@@ -91,16 +108,17 @@ jobs:
           grep -E "(_CADynamicRange|_MTLTensorDomain)" "$cache/symbols.txt" | tee -a artifact/BuildInfo.txt || true
           cp "$cache/AoE2HDBeta-source/LICENSE" "$app/COPYING.txt"
           cp "$cache/AoE2HDBeta-source/NOTICE.md" "$app/NOTICE.md"
+          cp VOICE-CREDITS.md "$app/VOICE-CREDITS.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
           ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
-          ipa="$PWD/artifact/AoE2HDMobile-1.0.1-VI-iOS15.1-TrollStore.ipa"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.2-VI-iOS15.1-TrollStore.ipa"
           ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
           unzip -tq "$ipa"
           (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.1-VI-iOS15.1-TrollStore
+          name: AoE2HDMobile-1.0.2-VI-iOS15.1-TrollStore
           path: artifact/
           if-no-files-found: error
           retention-days: 30

@@ -169,7 +169,7 @@ Researching %s %d%%|Đang nghiên cứu %s %d%%
 Training %s %d%%|Đang tạo %s %d%%
   (+%d queued)|  (+%d đang chờ)
 Your village|Làng của bạn
-Tap a villager, then a tree, bush, mine or the ground.\nDrag to scroll, pinch to zoom. Double-tap and draw a loop round units to select them. Build a Barracks and Towers before the raids.|Chọn dân, rồi chạm vào cây, bụi quả hoặc mỏ để khai thác.\nKéo để xem bản đồ, chụm hai ngón để thu phóng. Chạm hai lần rồi khoanh nhóm quân để chọn. Xây trại lính và tháp trước khi địch đến.
+Tap a villager, then a tree, bush, mine or the ground.\nDrag to scroll, pinch to zoom. Double-tap and draw a loop round units to select them. Build a Barracks and Towers before the raids.|Chọn dân, rồi chạm vào cây, bụi quả hoặc mỏ để khai thác.\nChạm đúp một đơn vị để chọn nhóm ở gần. Giữ rồi kéo để khoanh vùng chọn. Kéo nhanh để di chuyển bản đồ, chụm hai ngón để thu phóng.
 %d villagers, %d soldiers, %d buildings.|%d dân, %d lính, %d công trình.
 \nGarrison %d / %d|\nĐồn trú %d / %d
 , +%d arrows|, +%d mũi tên
