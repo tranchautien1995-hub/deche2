@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+from localize_vi import localize
+
 
 def edit(path, replacements):
     source = path.read_text(encoding="utf-8")
@@ -69,14 +71,15 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.0"
-application/version="1"
+application/short_version="1.0.1"
+application/version="2"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
 application/additional_plist_content="<key>UIFileSharingEnabled</key><true/><key>LSSupportsOpeningDocumentsInPlace</key><true/>"
 architectures/arm64=true
 """)
+    localize(project)
 
 
 if __name__ == "__main__":
