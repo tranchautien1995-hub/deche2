@@ -15,14 +15,14 @@ jobs:
           curl -fLsS --retry 3 https://domotix.co/download/9 -o upstream.zip
           printf '%s  %s\n' 2fff02c922ef5c6221dde6cd5b93569b427b277c38eae9e8231a7d70869573ef upstream.zip | sha256sum -c
           python3 - <<'PY'
-          import base64, re, zipfile
-          with zipfile.ZipFile("upstream.zip") as archive:
-              for path in archive.namelist():
-                  if not path.endswith((".gd", ".md", ".gdextension", "server.js", "server.py", "project.godot")):
-                      continue
-                  print("PATH", path)
-                  if re.search(r'multiplayer|network|lobby|room|match|/net/|/server/|/boot\.gd$|/project\.godot$|/NOTICE\.md$', path, re.I):
-                      data = archive.read(path)
-                      for offset in range(0, len(data), 8192):
-                          print("CONTENT", path, offset, base64.b64encode(data[offset:offset+8192]).decode())
+          import base64, io, re, zipfile
+          out = io.BytesIO()
+          wanted = re.compile(r"/(?:godot_game/(?:project\.godot|export_presets\.cfg|scripts/.*\.gd|scenes/.*\.tscn|tests/(?:flow|mp|menus|lasso)\.(?:gd|tscn))|server/[^/]+\.(?:php|md)|tools/mp_mock_server\.py|docs/[^/]+\.md|NOTICE\.md)$")
+          with zipfile.ZipFile("upstream.zip") as source, zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as target:
+              for name in source.namelist():
+                  if wanted.search(name):
+                      target.writestr(name.split("AoE2HDBeta-source/", 1)[1], source.read(name))
+          b64 = base64.b64encode(out.getvalue()).decode()
+          for offset in range(0, len(b64), 8192):
+              print("SOURCE_BLOB", offset, b64[offset:offset+8192])
           PY
