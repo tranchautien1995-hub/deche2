@@ -9,60 +9,38 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: macos-15
-    timeout-minutes: 20
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Fetch the verified upstream source and Godot
+      - name: Prepare and verify voices and mobile controls
         shell: bash
         run: |
           set -euo pipefail
-          version=4.7.2-stable
-          base="https://github.com/godotengine/godot-builds/releases/download/$version"
           cache="$RUNNER_TEMP/aoe2"
           mkdir -p "$cache"
           curl -fLsS --retry 3 https://domotix.co/download/3 -o "$cache/source.zip"
-          printf '%s  %s\n' b1a42902fdfc340e0dd1edc9d8eca9420fb56a36db51e0ea922ab746d669e013 "$cache/source.zip" | shasum -a 256 -c
+          printf '%s  %s\n' b1a42902fdfc340e0dd1edc9d8eca9420fb56a36db51e0ea922ab746d669e013 "$cache/source.zip" | sha256sum -c
           unzip -q "$cache/source.zip" -d "$cache"
-          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_macos.universal.zip" -o "$cache/godot.zip"
-          ditto -x -k "$cache/godot.zip" "$cache/editor"
-          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$cache/templates.tpz"
-          template_dir="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
-          mkdir -p "$template_dir"
-          unzip -j "$cache/templates.tpz" templates/ios.zip -d "$template_dir"
-          "$cache/editor/Godot.app/Contents/MacOS/Godot" --version
-
-      - name: Generate offline Vietnamese voice lines
-        shell: bash
-        run: |
-          set -euo pipefail
-          cache="$RUNNER_TEMP/aoe2"
           model=vi_VN-vais1000-medium
           base=https://huggingface.co/rhasspy/piper-voices/resolve/320d5f7f7751a17ef6512d5c23863056c6a11c0f/vi/vi_VN/vais1000/medium
           curl -fLsS --retry 3 "$base/$model.onnx?download=true" -o "$cache/$model.onnx"
           curl -fLsS --retry 3 "$base/$model.onnx.json?download=true" -o "$cache/$model.onnx.json"
-          test "$(md5 -q "$cache/$model.onnx")" = 5e42428c4f6131f75557cf156c9c1526
-          test "$(md5 -q "$cache/$model.onnx.json")" = 5ec9669253541d64ba97f60e422f1ad0
+          printf '%s  %s\n' 5e42428c4f6131f75557cf156c9c1526 "$cache/$model.onnx" 5ec9669253541d64ba97f60e422f1ad0 "$cache/$model.onnx.json" | md5sum -c
           python3 -m venv "$cache/voice-env"
           "$cache/voice-env/bin/pip" install 'piper-tts==1.4.1'
-          "$cache/voice-env/bin/python" unit_voice.py "$cache/AoE2HDBeta-source/godot_game" "$cache/$model.onnx"
-
-      - name: Import resources and export the Xcode project
-        shell: bash
-        run: |
-          set -euo pipefail
-          cache="$RUNNER_TEMP/aoe2"
-          godot="$cache/editor/Godot.app/Contents/MacOS/Godot"
           project="$cache/AoE2HDBeta-source/godot_game"
-          mkdir -p "$cache/export"
+          "$cache/voice-env/bin/python" unit_voice.py "$project" "$cache/$model.onnx"
           python3 prepare_ios.py "$project"
+          engine=Godot_v4.7.2-stable_linux.x86_64
+          curl -fLsS --retry 3 "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/$engine.zip" -o "$cache/godot.zip"
+          unzip -q "$cache/godot.zip" -d "$cache"
+          godot="$cache/$engine"
           "$godot" --headless --path "$project" --import >"$cache/godot-import.log" 2>&1 || {
             tail -100 "$cache/godot-import.log"
             exit 1
@@ -76,6 +54,47 @@ jobs:
           fi
           "$godot" --headless --path "$project" --quit-after 150 res://tests/lasso.tscn | tee "$cache/godot-input.log"
           grep -F 'MOBILE INPUT AND VOICE: 0 failures' "$cache/godot-input.log"
+          tar -czf game-project.tar.gz --exclude='AoE2HDBeta-source/godot_game/.godot' -C "$cache" AoE2HDBeta-source
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-game-project
+          path: game-project.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-game-project
+          path: prepared
+
+      - name: Set up Godot and export the Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          base=https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable
+          mkdir -p "$cache/export"
+          tar -xzf prepared/game-project.tar.gz -C "$cache"
+          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_macos.universal.zip" -o "$cache/godot.zip"
+          ditto -x -k "$cache/godot.zip" "$cache/editor"
+          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$cache/templates.tpz"
+          template_dir="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable"
+          mkdir -p "$template_dir"
+          unzip -j "$cache/templates.tpz" templates/ios.zip -d "$template_dir"
+          godot="$cache/editor/Godot.app/Contents/MacOS/Godot"
+          project="$cache/AoE2HDBeta-source/godot_game"
+          "$godot" --headless --path "$project" --import >"$cache/godot-macos.log" 2>&1 || {
+            tail -100 "$cache/godot-macos.log"
+            exit 1
+          }
           "$godot" --headless --path "$project" --export-release "iOS Portable" "$cache/export/AoE2HDMobile.ipa"
           test -d "$cache/export/AoE2HDMobile.xcodeproj"
 
