@@ -292,8 +292,11 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(1600, 900)
+	add_child(viewport)
 	camera = RtsCamera.new()
-	add_child(camera)
+	viewport.add_child(camera)
 	var taps := [0, 0]
 	var boxes: Array[Rect2] = []
 	camera.tapped.connect(func(_point: Vector2) -> void: taps[0] += 1)
@@ -332,6 +335,7 @@ func _run() -> void:
 	camera.position = Vector2.ZERO
 	var controller := Controller.new()
 	controller.cam = camera
+	Rules.civs = [{}, {"tech_tree": -1}]
 	controller.map = GameMap.new()
 	add_child(controller)
 	var villager := spawn(controller, Villager.new(), Vector2.ZERO)
