@@ -1,9 +1,10 @@
 """Prepare the published portable project for an iPhone export."""
 
 import sys
+from shutil import copyfile
 from pathlib import Path
 
-from localize_vi import localize
+from lobby_vi import localize
 from mobile_input import apply_mobile
 
 
@@ -17,6 +18,15 @@ def edit(path, replacements):
 
 
 def prepare(project):
+    source = Path(__file__).parent
+    copyfile(source / "room_code_screen.gd", project / "scripts/ui/room_code_screen.gd")
+    copyfile(source / "room_code_test.gd", project / "tests/room_code_test.gd")
+    (project / "tests/room_code_test.tscn").write_text(
+        '[gd_scene load_steps=2 format=3]\n\n'
+        '[ext_resource type="Script" path="res://tests/room_code_test.gd" id="1"]\n\n'
+        '[node name="RoomCodeTest" type="Node"]\nscript = ExtResource("1")\n', encoding="utf-8",
+    )
+
     edit(project / "project.godot", [
         ('config/name="Age of Android"', 'config/name="AoE2 HD Mobile"'),
     ])
@@ -29,12 +39,13 @@ def prepare(project):
             '\tif OS.has_feature("android"):\n\t\tout.append',
         ),
         (
-            '\tvar b2 := _button("Import from a CD or ISO image", _iso_info)\n\tcol.add_child(b2)',
+            '\tvar b2 := _button("Import from a CD or ISO image", _iso_browse)\n\tb2.disabled = not storage_ok()\n\tcol.add_child(b2)',
             '\tif OS.has_feature("ios"):\n'
             '\t\tcol.add_child(_label("In Files, copy the unzipped game folder into On My iPhone > AoE2 HD Mobile. '
             'It must contain Data and Bin. Come back here to import it.", 28, DIM))\n'
             '\telse:\n'
-            '\t\tcol.add_child(_button("Import from a CD or ISO image", _iso_info))',
+            '\t\tvar b2 := _button("Import from a CD or ISO image", _iso_browse)\n'
+            '\t\tb2.disabled = not storage_ok()\n\t\tcol.add_child(b2)',
         ),
         (
             '\tif _path != "/" and _path != "":',
@@ -45,6 +56,17 @@ def prepare(project):
             'If Android closes the app,',
             'If the app closes,',
         ),
+    ])
+
+    title = project / "scripts/ui/title_menu.gd"
+    edit(title, [
+        ('var _mp: MpApi                       # the connection to the multiplayer lobby, made when the player first opens that page\n', ''),
+        ('m.title_text = "Age of Android"', 'm.title_text = "AoE2 HD Mobile"'),
+        ('"text": "Multiplayer"', '"text": "Chơi online bằng mã"'),
+        ('func _multiplayer() -> MpNickScreen:\n'
+         '\tif _mp == null:\n\t\t_mp = MpApi.new()\n\t\tadd_child(_mp)\n'
+         '\tvar s := MpNickScreen.new()\n\ts.api = _mp\n\treturn s',
+         'func _multiplayer() -> RoomCodeScreen:\n\treturn RoomCodeScreen.new()'),
     ])
 
     edit(project / "scripts" / "game_log.gd", [
@@ -72,8 +94,8 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.2"
-application/version="3"
+application/short_version="1.0.3"
+application/version="4"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
@@ -81,7 +103,7 @@ application/additional_plist_content="<key>UIFileSharingEnabled</key><true/><key
 architectures/arm64=true
 """)
     apply_mobile(project, edit)
-    localize(project)
+    localize(project, edit)
 
 
 if __name__ == "__main__":

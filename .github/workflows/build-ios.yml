@@ -18,15 +18,16 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prepare and verify voices and mobile controls
+      - name: Prepare and verify skirmish, online lobby, voices and controls
         shell: bash
         run: |
           set -euo pipefail
           cache="$RUNNER_TEMP/aoe2"
           mkdir -p "$cache"
-          curl -fLsS --retry 3 https://domotix.co/download/3 -o "$cache/source.zip"
-          printf '%s  %s\n' b1a42902fdfc340e0dd1edc9d8eca9420fb56a36db51e0ea922ab746d669e013 "$cache/source.zip" | sha256sum -c
+          curl -fLsS --retry 3 https://domotix.co/download/9 -o "$cache/source.zip"
+          printf '%s  %s\n' 2fff02c922ef5c6221dde6cd5b93569b427b277c38eae9e8231a7d70869573ef "$cache/source.zip" | sha256sum -c
           unzip -q "$cache/source.zip" -d "$cache"
+          mv "$cache/AoE2HDBeta-1.2.0-source/AoE2HDBeta-source" "$cache/AoE2HDBeta-source"
           model=vi_VN-vais1000-medium
           base=https://huggingface.co/rhasspy/piper-voices/resolve/320d5f7f7751a17ef6512d5c23863056c6a11c0f/vi/vi_VN/vais1000/medium
           curl -fLsS --retry 3 "$base/$model.onnx?download=true" -o "$cache/$model.onnx"
@@ -54,6 +55,18 @@ jobs:
           fi
           "$godot" --headless --path "$project" --quit-after 150 res://tests/lasso.tscn | tee "$cache/godot-input.log"
           grep -F 'MOBILE INPUT AND VOICE: 0 failures' "$cache/godot-input.log"
+          python3 "$cache/AoE2HDBeta-source/tools/mp_mock_server.py" 18081 > "$cache/mock-server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if grep -q 'mock lobby server on' "$cache/mock-server.log"; then break; fi
+            sleep 0.2
+          done
+          grep -q 'mock lobby server on' "$cache/mock-server.log"
+          AOE_MP_URL=http://127.0.0.1:18081/ XDG_DATA_HOME="$cache/test-user-data" \
+            timeout 35s "$godot" --headless --path "$project" res://tests/room_code_test.tscn 2>&1 | tee "$cache/godot-lobby.log"
+          grep -F 'LOBBY AND ROOM CODE: 0 failures' "$cache/godot-lobby.log"
+          ! grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-lobby.log"
           tar -czf game-project.tar.gz --exclude='AoE2HDBeta-source/godot_game/.godot' -C "$cache" AoE2HDBeta-source
       - uses: actions/upload-artifact@v4
         with:
@@ -114,7 +127,7 @@ jobs:
           plist="$app/Info.plist"
           plutil -lint "$plist"
           test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.2"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.3"
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.tranchautien1995.aoe2hdmobile"
           test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
           test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
@@ -133,14 +146,14 @@ jobs:
           cp VOICE-CREDITS.md "$app/VOICE-CREDITS.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
           ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
-          ipa="$PWD/artifact/AoE2HDMobile-1.0.2-VI-iOS15.1-TrollStore.ipa"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.3-VI-iOS15.1-TrollStore.ipa"
           ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
           unzip -tq "$ipa"
           (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.2-VI-iOS15.1-TrollStore
+          name: AoE2HDMobile-1.0.3-VI-iOS15.1-TrollStore
           path: artifact/
           if-no-files-found: error
           retention-days: 30

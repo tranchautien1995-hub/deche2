@@ -144,6 +144,9 @@ func on_tap(w: Vector2) -> void:
 	if placing != "":
 		move_ghost(w)
 		return
+	if ground_mode:
+		_attack_ground_at(w)
+		return
 	var hit := pick(w)
 	if hit is Relic:
 		_relic_tap(hit)
@@ -152,7 +155,7 @@ func on_tap(w: Vector2) -> void:
 			_last_tapped_unit = hit
 			select_units([hit])
 			Chatter.acknowledge(hit, "soldier_select" if hit is Soldier else "select")
-		elif hit.team != 0:
+		elif map.against_player(hit.team):
 			_attack(hit)
 	elif hit is Building:
 		_building_tap(hit)
@@ -164,7 +167,7 @@ func on_tap(w: Vector2) -> void:
 
 func on_double_tap(w: Vector2) -> void:
 	var hit := pick(w)
-	if placing != "" or not hit is Mob or not _selectable(hit) or hit != _last_tapped_unit:
+	if placing != "" or ground_mode or not hit is Mob or not _selectable(hit) or hit != _last_tapped_unit:
 		on_tap(w)
 		return
 	_last_tapped_unit = null
@@ -433,34 +436,32 @@ var _box_active := false
 
     controller = scripts / "controller.gd"
     source = controller.read_text(encoding="utf-8")
-    source = replace_span(source, "var _pending_move", "func toast", """\
+    source = replace_span(source, "var _pending_move", "\n\n", """\
 const GROUP_RADIUS := 14.0
-var _last_tapped_unit: Mob
-
-
-""")
+var _last_tapped_unit: Mob""")
     source = replace_span(source, "func on_tap(", "## Villagers that", CONTROLLER_SELECTION)
+    source = source.replace('Chatter.say(vills[0], "farm")', 'Chatter.acknowledge(vills[0], "farm")')
     controller.write_text(source, encoding="utf-8")
     edit(controller, [
         ("if m.get_rect().grow(8.0).has_point", "if m.alive and m.is_visible_in_tree() and m.get_rect().grow(8.0).has_point"),
         ('Chatter.say(best, "relic")', 'Chatter.acknowledge(best, "relic")'),
         ('Chatter.say_some(hunters, "food")', 'Chatter.say_some(hunters, "hunt")'),
-        ('Chatter.say(vills[0], "farm")', 'Chatter.acknowledge(vills[0], "farm")'),
         ('Chatter.say(best, "repair")', 'Chatter.acknowledge(best, "repair")'),
         ('\t\t\tb.flash()\n\t\t\ttoast("The relic goes', '\t\t\tb.flash()\n\t\t\tChatter.say_some(carriers, "deliver")\n\t\t\ttoast("The relic goes'),
         ('\tb.flash()\n\ttoast("%d to the', '\tb.flash()\n\tChatter.say_some(sent, "garrison")\n\ttoast("%d to the'),
-        ('\t\tif r.kind != "fish":\n\t\t\tChatter.say_some(workers, r.kind)',
-         '\t\tif r.kind == "fish":\n\t\t\tChatter.say_some(sel_units.filter(func(u: Mob) -> bool: return u is Ship), "fish")\n'
-         '\t\telse:\n\t\t\tChatter.say_some(workers, r.kind)'),
+        ('Chatter.say_some(workers, "food" if r.kind == "fish" else r.kind)',
+         'Chatter.say_some(sel_units.filter(func(u: Mob) -> bool: return u is Ship) + workers if r.kind == "fish" else workers, r.kind)'),
     ])
 
     main = scripts / "main.gd"
     source = main.read_text(encoding="utf-8")
-    source = replace_span(source, '\tcam.lasso_ok', '\n\nvar _auto_t', """\
-	cam.box_ok = func() -> bool: return ctl.placing == ""
+    source = replace_span(source, '\tcam.lasso_ok', '## Loads the save', """\
+	cam.box_ok = func() -> bool: return ctl.placing == "" and not ctl.ground_mode
 	cam.double_tapped.connect(ctl.on_double_tap)
 	cam.box_changed.connect(func(area: Rect2) -> void: hud.lasso.set_area(area))
 	cam.box_selected.connect(ctl.select_in_box)
+
+
 """)
     main.write_text(source, encoding="utf-8")
 
@@ -494,7 +495,7 @@ func speak_unit(category: String, index: int, soldier: bool) -> void:
 
 ## (Re)loads the music;"""),
     ])
-    hud = scripts / "hud.gd"
-    edit(hud, [
+    options = scripts / "ui" / "options_screen.gd"
+    edit(options, [
         ('["Master", "Music", "Combat", "Work", "Alerts"]', '["Master", "Music", "Combat", "Work", "Alerts", "Voice"]'),
     ])
