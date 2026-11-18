@@ -1,0 +1,28 @@
+name: Inspect the published multiplayer source
+on:
+  push:
+    branches: [upstream-1-2-review]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the verified upstream archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 https://domotix.co/download/9 -o upstream.zip
+          printf '%s  %s\n' 2fff02c922ef5c6221dde6cd5b93569b427b277c38eae9e8231a7d70869573ef upstream.zip | sha256sum -c
+          python3 - <<'PY'
+          import base64, re, zipfile
+          with zipfile.ZipFile("upstream.zip") as archive:
+              for path in archive.namelist():
+                  if not path.endswith((".gd", ".md", ".gdextension", "server.js", "server.py", "project.godot")):
+                      continue
+                  print("PATH", path)
+                  if re.search(r'multiplayer|network|lobby|room|match|/net/|/server/|/boot\.gd$|/project\.godot$|/NOTICE\.md$', path, re.I):
+                      data = archive.read(path)
+                      for offset in range(0, len(data), 8192):
+                          print("CONTENT", path, offset, base64.b64encode(data[offset:offset+8192]).decode())
+          PY
