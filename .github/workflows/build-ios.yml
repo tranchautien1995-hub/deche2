@@ -12,6 +12,8 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +61,7 @@ jobs:
           set -euo pipefail
           cache="$RUNNER_TEMP/aoe2"
           xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
           xcodebuild -project "$cache/export/AoE2HDMobile.xcodeproj" -scheme AoE2HDMobile \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath "$cache/derived" -quiet \
@@ -77,6 +80,9 @@ jobs:
           grep -Eq 'minos[[:space:]]+15\.1$' "$cache/macho.txt"
           find "$app" -type f -name '*.pck' -size +0c | grep -q .
           mkdir -p artifact "$cache/package/Payload"
+          cp "$cache/macho.txt" artifact/BuildInfo.txt
+          xcrun nm -m "$executable" >"$cache/symbols.txt"
+          grep -E "(_CADynamicRange|_MTLTensorDomain)" "$cache/symbols.txt" | tee -a artifact/BuildInfo.txt || true
           cp "$cache/AoE2HDBeta-source/LICENSE" "$app/COPYING.txt"
           cp "$cache/AoE2HDBeta-source/NOTICE.md" "$app/NOTICE.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
