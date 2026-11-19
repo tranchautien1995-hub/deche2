@@ -95,8 +95,10 @@ func report_engagement(target_team: int, attacker: Object) -> void:
          '\t_music = AudioStreamPlayer.new()'),
         ('func reload_data() -> void:\n\t_streams.clear()',
          'func reload_data() -> void:\n\t_streams.clear()\n'
-         '\tvar original := GameData.audio("snd/attack_warning_general.wav")\n'
-         '\t_battle_player.stream = original if original != null else preload("res://assets/mobile/battle_bell.wav")'),
+         '\t_battle_player.stream = GameData.audio("snd/attack_warning_general.wav")\n'
+         '\tvar fallback := "res://assets/mobile/battle_bell.wav"\n'
+         '\tif _battle_player.stream == null and ResourceLoader.exists(fallback):\n'
+         '\t\t_battle_player.stream = load(fallback) as AudioStream'),
         ('# ------------------------------------------------------------------ effects', '''\
 func reset_battle_alert() -> void:
 	_last_battle_ms = -8000

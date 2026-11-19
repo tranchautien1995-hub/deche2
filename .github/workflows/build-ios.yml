@@ -117,7 +117,7 @@ jobs:
           curl -fLsS --retry 3 "$base/$engine.zip" -o "$cache/godot.zip"
           unzip -q "$cache/godot.zip" -d "$cache"
           curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$cache/templates.tpz"
-          unzip -j "$cache/templates.tpz" templates/android_release.apk -d "$templates"
+          unzip -j "$cache/templates.tpz" templates/android_release.apk templates/android_debug.apk -d "$templates"
           printf '%s\n' '[gd_resource type="EditorSettings" format=3]' '[resource]' \
             "export/android/java_sdk_path = \"$JAVA_HOME\"" \
             "export/android/android_sdk_path = \"$sdk\"" > "$cfg/editor_settings-4.7.tres"
@@ -150,6 +150,8 @@ jobs:
               assert not any(x.endswith(('.drs', '.slp', 'empires2_x1_p1.dat')) for x in files)
           PY
           rm -f "$apk.idsig"
+          cp "$cache/AoE2HDBeta-source/LICENSE" android-artifact/COPYING.txt
+          cp "$cache/AoE2HDBeta-source/NOTICE.md" VOICE-CREDITS.md android-artifact/
           (cd android-artifact && sha256sum *.apk > SHA256.txt)
       - uses: actions/upload-artifact@v4
         with:
