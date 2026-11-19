@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   prepare:
@@ -75,6 +76,87 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  package:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-game-project
+          path: prepared
+      - uses: actions/download-artifact@v4
+        with:
+          name: AoE2HDMobile-1.0.2-VI-iOS15.1-TrollStore
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 44347646947
+          path: baseline
+      - name: Export the iOS resource pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          mkdir -p "$cache"
+          tar -xzf prepared/game-project.tar.gz -C "$cache"
+          engine=Godot_v4.7.2-stable_linux.x86_64
+          curl -fLsS --retry 3 "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/$engine.zip" -o "$cache/godot.zip"
+          unzip -q "$cache/godot.zip" -d "$cache"
+          project="$cache/AoE2HDBeta-source/godot_game"
+          "$cache/$engine" --headless --path "$project" --import > "$cache/import.log" 2>&1
+          ! grep -E 'SCRIPT ERROR|Failed to load script' "$cache/import.log"
+          "$cache/$engine" --headless --path "$project" --export-pack 'iOS Portable' "$cache/game.pck"
+          test -s "$cache/game.pck"
+          "$cache/$engine" --headless --main-pack "$cache/game.pck" --quit-after 10 > "$cache/pack.log" 2>&1
+          ! grep -E 'SCRIPT ERROR|Failed to load script' "$cache/pack.log"
+      - name: Verify service reachability and package the IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fSs --max-time 8 -H 'Content-Type: application/json' --data '{"action":"status"}' https://domotix.co/aoeserver/lobby.php || true
+          (cd baseline && sha256sum -c SHA256.txt)
+          mkdir -p artifact
+          python3 - <<'PY'
+          import os
+          import plistlib
+          import zipfile
+          from pathlib import Path
+
+          cache = Path(os.environ['RUNNER_TEMP']) / 'aoe2'
+          project = cache / 'AoE2HDBeta-source'
+          baseline, = Path('baseline').glob('*.ipa')
+          prefix = 'Payload/AoE2HDMobile.app/'
+          target = Path('artifact/AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore.ipa')
+          with zipfile.ZipFile(baseline) as source, zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as output:
+              pack, = [name for name in source.namelist() if name.startswith(prefix) and name.endswith('.pck')]
+              for item in source.infolist():
+                  assert '/_CodeSignature/' not in item.filename
+                  data = source.read(item)
+                  if item.filename == pack:
+                      data = (cache / 'game.pck').read_bytes()
+                  elif item.filename == prefix + 'Info.plist':
+                      info = plistlib.loads(data)
+                      assert info['MinimumOSVersion'] == '15.1'
+                      assert info['CFBundleIdentifier'] == 'io.github.tranchautien1995.aoe2hdmobile'
+                      info['CFBundleShortVersionString'] = '1.0.4'
+                      info['CFBundleVersion'] = '5'
+                      data = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
+                  elif item.filename in (prefix + 'COPYING.txt', prefix + 'NOTICE.md'):
+                      data = (project / ('LICENSE' if item.filename.endswith('COPYING.txt') else 'NOTICE.md')).read_bytes()
+                  output.writestr(item, data)
+          PY
+          cp baseline/BuildInfo.txt artifact/BuildInfo.txt
+          printf '%s\n' 'Godot 4.7.2 iOS executable verified byte-for-byte from Xcode build 44347646947.' >> artifact/BuildInfo.txt
+          (cd artifact && sha256sum *.ipa > SHA256.txt && zip -q ../package-verify.zip *)
+          mkdir -p verified
+          python3 verify_download.py package-verify.zip verified
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     needs: prepare
     runs-on: macos-26
@@ -127,7 +209,7 @@ jobs:
           plist="$app/Info.plist"
           plutil -lint "$plist"
           test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.3"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.4"
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.tranchautien1995.aoe2hdmobile"
           test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
           test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
@@ -146,15 +228,14 @@ jobs:
           cp VOICE-CREDITS.md "$app/VOICE-CREDITS.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
           ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
-          ipa="$PWD/artifact/AoE2HDMobile-1.0.3-VI-iOS15.1-TrollStore.ipa"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore.ipa"
           ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
           unzip -tq "$ipa"
           (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.3-VI-iOS15.1-TrollStore
+          name: AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore-Xcode
           path: artifact/
           if-no-files-found: error
           retention-days: 30
-

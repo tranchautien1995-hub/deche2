@@ -13,6 +13,10 @@ var _waiting: HBoxContainer
 var _start: Button
 var _copy: Button
 var _resume_button: Button
+var _setup: VBoxContainer
+var _settings_label: Label
+var _resource_index := GameSetup.RESOURCES.find(GameSetup.DEFAULT_RESOURCES)
+var _population_index := GameSetup.POPULATION_OPTIONS.find(GameSetup.MAX_POPULATION)
 var _role := ""
 var _code := ""
 var _invite := 0
@@ -22,11 +26,24 @@ var _busy := false
 var _launching := false
 
 
-static func generate_code() -> String:
+static func generate_code(pop_index := GameSetup.POPULATION_OPTIONS.size() - 1, resource_index := 1) -> String:
 	var code := ""
-	for byte: int in Crypto.new().generate_random_bytes(CODE_LENGTH):
+	for byte: int in Crypto.new().generate_random_bytes(CODE_LENGTH - 1):
 		code += ALPHABET[byte % ALPHABET.length()]
-	return code
+	return code + ALPHABET[pop_index * GameSetup.RESOURCES.size() + resource_index]
+
+
+static func settings_from_code(code: String) -> Dictionary:
+	if code.length() != CODE_LENGTH:
+		return {}
+	var combination := ALPHABET.find(code.right(1))
+	var levels := GameSetup.RESOURCES.size()
+	if combination < 0 or combination >= GameSetup.POPULATION_OPTIONS.size() * levels:
+		return {}
+	return {
+		"population_limit": GameSetup.POPULATION_OPTIONS[floori(float(combination) / levels)],
+		"resources": GameSetup.RESOURCES[combination % levels],
+	}
 
 
 static func normalize(raw: String) -> String:
@@ -40,16 +57,25 @@ static func normalize(raw: String) -> String:
 
 
 static func alias(code: String, role: String) -> String:
-	var digest := ("aoe2hdmobile-room-v1:%s:%s" % [role, code]).sha256_text()
+	var digest := ("aoe2hdmobile-room-v2:%s:%s" % [role, code]).sha256_text()
 	return role.to_upper() + digest.substr(0, 14)
 
 
 func _ready() -> void:
-	var v := make_sheet(1570, 1050, "Chơi online bằng mã")
+	var v := make_sheet(1730, 1400, "Chơi online bằng mã")
 	v.add_child(MenuKit.label("Đấu 1v1 · Hai người dùng cùng bản cập nhật", 38 * u, MenuKit.INK, HORIZONTAL_ALIGNMENT_CENTER))
 	_input = MenuKit.line_edit(u, "Nhập mã phòng 8 ký tự", 16)
 	_input.text_submitted.connect(func(_value: String) -> void: _join())
 	v.add_child(_input)
+	_setup = VBoxContainer.new()
+	_setup.add_child(MenuKit.label("Chủ phòng chọn trước khi tạo phòng", 34 * u, MenuKit.INK))
+	_setup.add_child(MenuKit.label("Population Limit", 35 * u))
+	_setup.add_child(MenuKit.segmented(GameSetup.POPULATION_OPTIONS, _population_index, _pick_population, u, 39.0, 72.0))
+	_setup.add_child(MenuKit.label("Starting Resources", 35 * u))
+	_setup.add_child(MenuKit.segmented(GameSetup.RESOURCE_NAMES, _resource_index, _pick_resources, u, 39.0, 72.0))
+	v.add_child(_setup)
+	_settings_label = MenuKit.label("", 37 * u, MenuKit.INK, HORIZONTAL_ALIGNMENT_CENTER)
+	v.add_child(_settings_label)
 	_code_label = MenuKit.line_edit(u, "", CODE_LENGTH)
 	_code_label.editable = false
 	_code_label.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -84,6 +110,11 @@ func _button(label: String, action: Callable) -> Button:
 
 func _render() -> void:
 	_actions.visible = _role.is_empty()
+	_setup.visible = _actions.visible
+	var settings := settings_from_code(_code)
+	_settings_label.visible = not settings.is_empty()
+	if not settings.is_empty():
+		_settings_label.text = "%d đơn vị mỗi bên · %d mỗi loại tài nguyên" % [settings.population_limit, GameSetup.resource_amount(settings.resources)]
 	_input.visible = _actions.visible
 	_input.editable = not _busy
 	for b: Button in _actions.get_children():
@@ -98,15 +129,25 @@ func _render() -> void:
 
 func _host() -> void:
 	if not _busy:
-		_connect_room("h", generate_code())
+		_connect_room("h", generate_code(_population_index, _resource_index))
+
+
+func _pick_population(index: int) -> void:
+	_population_index = index
+	MenuKit.mark_segment(_setup.get_child(2), index, u)
+
+
+func _pick_resources(index: int) -> void:
+	_resource_index = index
+	MenuKit.mark_segment(_setup.get_child(4), index, u)
 
 
 func _join() -> void:
 	if _busy:
 		return
 	var code := normalize(_input.text)
-	if code.is_empty():
-		_status.text = "Kiểm tra mã phòng. Mã có 8 ký tự, ví dụ ABCD-2345."
+	if settings_from_code(code).is_empty():
+		_status.text = "Kiểm tra mã phòng 8 ký tự và phiên bản của hai máy."
 		return
 	_input.release_focus()
 	_connect_room("g", code)
@@ -190,7 +231,7 @@ func _on_room(room: Variant) -> void:
 		return
 	if room is Dictionary and int(room.id) == _room_id and String(room.status) == "playing":
 		_launching = true
-		if not MpMatch.launch(api, get_tree()):
+		if not MpMatch.launch(api, get_tree(), settings_from_code(_code)):
 			_launching = false
 			_reset("Không thể mở trận. Hãy tạo phòng mới.")
 	elif _role == "g" and Time.get_ticks_msec() - _joined_at > 2000 \

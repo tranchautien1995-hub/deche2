@@ -5,6 +5,7 @@ from shutil import copyfile
 from pathlib import Path
 
 from lobby_vi import localize
+from match_settings import apply_match_settings
 from mobile_input import apply_mobile
 
 
@@ -94,8 +95,8 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.3"
-application/version="4"
+application/short_version="1.0.4"
+application/version="5"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
@@ -103,6 +104,7 @@ application/additional_plist_content="<key>UIFileSharingEnabled</key><true/><key
 architectures/arm64=true
 """)
     apply_mobile(project, edit)
+    apply_match_settings(project, edit)
     localize(project, edit)
 
 

@@ -6,10 +6,12 @@ Bản xuất iOS của Age of Android 1.2.0 từ Domotix, dành cho iPhone arm64
 2. Giải nén bộ dữ liệu Age of Empires II HD của bạn và chép thư mục chứa cả `Data` và `Bin` vào **Tệp → Trên iPhone → AoE2 HD Mobile**.
 3. Trong game, bấm **Chọn thư mục game**, chọn thư mục rồi bấm **Nhập dữ liệu**. Để ứng dụng mở trong lúc nhập.
 
-Cài bản 1.0.3 đè lên bản cũ để giữ dữ liệu đã nhập và trận đã lưu. Các mô tả văn minh lấy trực tiếp từ bản game và một số thuật ngữ chuyên biệt vẫn dùng tiếng Anh.
+Cài bản 1.0.4 đè lên bản cũ để giữ dữ liệu đã nhập và trận đã lưu. Các mô tả văn minh lấy trực tiếp từ bản game và một số thuật ngữ chuyên biệt vẫn dùng tiếng Anh.
 
 - **Đấu với máy** mở sảnh chỉnh độ khó Dễ, Trung bình hoặc Khó, nền văn minh, tài nguyên ban đầu, kích thước và tầm nhìn bản đồ, kiểu trận và điều kiện thắng. Có thể chọn đến bốn máy và xếp đội riêng cho từng máy.
 - **Chơi online bằng mã** mở phòng đấu 1v1 qua máy chủ Domotix. Cả hai cài cùng bản. Một người tạo phòng và gửi mã 8 ký tự, người còn lại nhập mã rồi bấm **Vào phòng**. Chủ phòng bấm **Bắt đầu** khi bạn đã vào. Trận online dùng bản đồ nhỏ và luật Đấu sinh tử.
+- Mỗi trận mới có thể đặt giới hạn 25, 50, 75, 100, 125 hoặc 150 đơn vị mỗi bên. Mức tài nguyên Ít, Trung bình, Nhiều cấp lần lượt 250, 500 và 1.000 mỗi loại. Mặc định là Trung bình. Khi chơi online, chủ phòng chọn hai thiết lập này trước khi tạo mã.
+- Dân và lính của bạn hiện bóng xanh khi đứng sau cây hoặc công trình. Chấm màu trên bản đồ nhỏ đánh dấu căn cứ ban đầu của từng AI đối địch ngay từ đầu trận.
 
 - Chạm dân hoặc lính để nghe lời đáp tiếng Việt. Khi giao việc, đơn vị sẽ đáp theo việc được giao. Chỉnh âm lượng trong **Cài đặt > Âm thanh > Giọng dân và lính**.
 - Chạm đúp dân để chọn dân ở gần, chạm đúp lính để chọn quân ở gần. Giữ khoảng một phần ba giây rồi kéo để vẽ khung chọn cả hai.
