@@ -1,4 +1,4 @@
-name: Build iOS 15.1 IPA
+name: Build AoE2 HD Mobile
 
 on:
   push:
@@ -71,6 +71,9 @@ jobs:
           timeout 25s "$godot" --headless --path "$project" res://tests/construction_test.tscn 2>&1 | tee "$cache/godot-construction.log"
           grep -F "CONSTRUCTION AND TRAINING: 0 failures" "$cache/godot-construction.log"
           if grep -E "SCRIPT ERROR|Failed to load script" "$cache/godot-construction.log"; then exit 1; fi
+          timeout 35s "$godot" --headless --path "$project" res://tests/battle_setup_test.tscn 2>&1 | tee "$cache/godot-battle.log"
+          grep -F "BATTLE AND SPAWN: 0 failures" "$cache/godot-battle.log"
+          if grep -E "SCRIPT ERROR|Failed to load script" "$cache/godot-battle.log"; then exit 1; fi
           tar -czf game-project.tar.gz --exclude='AoE2HDBeta-source/godot_game/.godot' -C "$cache" AoE2HDBeta-source
       - uses: actions/upload-artifact@v4
         with:
@@ -78,6 +81,82 @@ jobs:
           path: game-project.tar.gz
           if-no-files-found: error
           retention-days: 1
+
+  android:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-game-project
+          path: prepared
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Export and verify the Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/aoe2"
+          sdk="${ANDROID_HOME:?Android SDK unavailable}"
+          tools="$sdk/build-tools/35.0.1"
+          if [[ ! -x "$tools/apksigner" ]]; then
+            sdkmanager --sdk_root="$sdk" "build-tools;35.0.1"
+          fi
+          cfg="$cache/editor-settings/godot"
+          templates="$cache/editor-data/godot/export_templates/4.7.2.stable"
+          mkdir -p "$cache" "$cfg" "$templates" android-artifact
+          export XDG_CONFIG_HOME="$cache/editor-settings"
+          export XDG_DATA_HOME="$cache/editor-data"
+          tar -xzf prepared/game-project.tar.gz -C "$cache"
+          base=https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable
+          engine=Godot_v4.7.2-stable_linux.x86_64
+          curl -fLsS --retry 3 "$base/$engine.zip" -o "$cache/godot.zip"
+          unzip -q "$cache/godot.zip" -d "$cache"
+          curl -fLsS --retry 3 "$base/Godot_v4.7.2-stable_export_templates.tpz" -o "$cache/templates.tpz"
+          unzip -j "$cache/templates.tpz" templates/android_release.apk -d "$templates"
+          printf '%s\n' '[gd_resource type="EditorSettings" format=3]' '[resource]' \
+            "export/android/java_sdk_path = \"$JAVA_HOME\"" \
+            "export/android/android_sdk_path = \"$sdk\"" > "$cfg/editor_settings-4.7.tres"
+          project="$cache/AoE2HDBeta-source/godot_game"
+          godot="$cache/$engine"
+          "$godot" --headless --path "$project" --import > "$cache/godot-android-import.log" 2>&1
+          if grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-android-import.log"; then exit 1; fi
+          "$godot" --headless --path "$project" --export-release 'Android portable' "$cache/unsigned.apk"
+          "$tools/zipalign" -P 16 -f 4 "$cache/unsigned.apk" "$cache/aligned.apk"
+          keytool -genkeypair -keystore "$cache/test-signing.p12" -storetype PKCS12 \
+            -storepass android -keypass android -alias aoe2mobile-test -keyalg RSA -keysize 2048 \
+            -validity 3650 -dname 'CN=AoE2 HD Mobile test build' -noprompt
+          apk="$PWD/android-artifact/AoE2HDMobile-1.0.6-VI-Android.apk"
+          "$tools/apksigner" sign --ks "$cache/test-signing.p12" --ks-pass pass:android \
+            --ks-key-alias aoe2mobile-test --out "$apk" "$cache/aligned.apk"
+          "$tools/apksigner" verify --verbose --print-certs "$apk" | tee android-artifact/Signature.txt
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          "$tools/aapt" dump badging "$apk" > android-artifact/AndroidInfo.txt
+          grep -F "package: name='io.github.tranchautien1995.aoe2hdmobile' versionCode='106' versionName='1.0.6'" android-artifact/AndroidInfo.txt
+          grep -E "^(sdkVersion|targetSdkVersion|native-code)" android-artifact/AndroidInfo.txt
+          python3 - "$apk" <<'PY'
+          import sys
+          from zipfile import ZipFile
+          with ZipFile(sys.argv[1]) as apk:
+              assert apk.testzip() is None
+              files = apk.namelist()
+              assert 'lib/arm64-v8a/libgodot_android.so' in files
+              assert 'lib/armeabi-v7a/libgodot_android.so' in files
+              assert any(x.startswith('assets/') and x.endswith(('project.binary', '.pck')) for x in files)
+              assert not any(x.endswith(('.drs', '.slp', 'empires2_x1_p1.dat')) for x in files)
+          PY
+          rm -f "$apk.idsig"
+          (cd android-artifact && sha256sum *.apk > SHA256.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AoE2HDMobile-1.0.6-VI-Android
+          path: android-artifact/
+          if-no-files-found: error
+          retention-days: 30
 
   package:
     needs: prepare
@@ -129,7 +208,7 @@ jobs:
           project = cache / 'AoE2HDBeta-source'
           baseline, = Path('baseline').glob('*.ipa')
           prefix = 'Payload/AoE2HDMobile.app/'
-          target = Path('artifact/AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore.ipa')
+          target = Path('artifact/AoE2HDMobile-1.0.6-VI-iOS15.1-TrollStore.ipa')
           with zipfile.ZipFile(baseline) as source, zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as output:
               pack, = [name for name in source.namelist() if name.startswith(prefix) and name.endswith('.pck')]
               for item in source.infolist():
@@ -141,8 +220,8 @@ jobs:
                       info = plistlib.loads(data)
                       assert info['MinimumOSVersion'] == '15.1'
                       assert info['CFBundleIdentifier'] == 'io.github.tranchautien1995.aoe2hdmobile'
-                      info['CFBundleShortVersionString'] = '1.0.5'
-                      info['CFBundleVersion'] = '6'
+                      info['CFBundleShortVersionString'] = '1.0.6'
+                      info['CFBundleVersion'] = '7'
                       data = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
                   elif item.filename in (prefix + 'COPYING.txt', prefix + 'NOTICE.md'):
                       data = (project / ('LICENSE' if item.filename.endswith('COPYING.txt') else 'NOTICE.md')).read_bytes()
@@ -155,7 +234,7 @@ jobs:
           python3 verify_download.py package-verify.zip verified
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore
+          name: AoE2HDMobile-1.0.6-VI-iOS15.1-TrollStore
           path: artifact/
           if-no-files-found: error
           retention-days: 30
@@ -212,7 +291,7 @@ jobs:
           plist="$app/Info.plist"
           plutil -lint "$plist"
           test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.5"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.6"
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.tranchautien1995.aoe2hdmobile"
           test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
           test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
@@ -231,14 +310,14 @@ jobs:
           cp VOICE-CREDITS.md "$app/VOICE-CREDITS.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
           ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
-          ipa="$PWD/artifact/AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore.ipa"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.6-VI-iOS15.1-TrollStore.ipa"
           ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
           unzip -tq "$ipa"
           (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore-Xcode
+          name: AoE2HDMobile-1.0.6-VI-iOS15.1-TrollStore-Xcode
           path: artifact/
           if-no-files-found: error
           retention-days: 30

@@ -5,6 +5,7 @@ from shutil import copyfile
 from pathlib import Path
 
 from lobby_vi import localize
+from battle_setup import apply_battle_setup
 from construction import apply_construction
 from match_settings import apply_match_settings
 from mobile_input import apply_mobile
@@ -24,7 +25,8 @@ def prepare(project):
     copyfile(source / "room_code_screen.gd", project / "scripts/ui/room_code_screen.gd")
     copyfile(source / "room_code_test.gd", project / "tests/room_code_test.gd")
     copyfile(source / "construction_test.gd", project / "tests/construction_test.gd")
-    for test in ("room_code_test", "construction_test"):
+    copyfile(source / "battle_setup_test.gd", project / "tests/battle_setup_test.gd")
+    for test in ("room_code_test", "construction_test", "battle_setup_test"):
         (project / f"tests/{test}.tscn").write_text(
             '[gd_scene load_steps=2 format=3]\n\n'
             f'[ext_resource type="Script" path="res://tests/{test}.gd" id="1"]\n\n'
@@ -82,7 +84,18 @@ def prepare(project):
         ),
     ])
 
-    with (project / "export_presets.cfg").open("a", encoding="utf-8") as presets:
+    exports = project / "export_presets.cfg"
+    android = exports.read_text(encoding="utf-8")
+    original_portable = android.index("[preset.1]")
+    android = android[:original_portable] + android[original_portable:].replace(
+        'package/unique_name="co.domotix.ao2hdbeta"', 'package/unique_name="io.github.tranchautien1995.aoe2hdmobile"'
+    ).replace('package/name="AoE2HDBeta"', 'package/name="AoE2 HD Mobile"').replace(
+        'version/code=12\nversion/name="1.2.0"', 'version/code=106\nversion/name="1.0.6"'
+    ).replace('package/signed=true', 'package/signed=false').replace(
+        'exclude_filter="assets/aoe/*"', 'exclude_filter="assets/aoe/*,tests/*"'
+    ).replace('architectures/armeabi-v7a=false', 'architectures/armeabi-v7a=true')
+    exports.write_text(android, encoding="utf-8")
+    with exports.open("a", encoding="utf-8") as presets:
         presets.write("""
 [preset.2]
 
@@ -98,8 +111,8 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.5"
-application/version="6"
+application/short_version="1.0.6"
+application/version="7"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
@@ -109,6 +122,7 @@ architectures/arm64=true
     apply_mobile(project, edit)
     apply_match_settings(project, edit)
     apply_construction(project, edit)
+    apply_battle_setup(project, edit)
     localize(project, edit)
 
 
