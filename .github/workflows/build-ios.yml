@@ -67,7 +67,7 @@ jobs:
           AOE_MP_URL=http://127.0.0.1:18081/ XDG_DATA_HOME="$cache/test-user-data" \
             timeout 35s "$godot" --headless --path "$project" res://tests/room_code_test.tscn 2>&1 | tee "$cache/godot-lobby.log"
           grep -F 'LOBBY AND ROOM CODE: 0 failures' "$cache/godot-lobby.log"
-          ! grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-lobby.log"
+          if grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-lobby.log"; then exit 1; fi
           tar -czf game-project.tar.gz --exclude='AoE2HDBeta-source/godot_game/.godot' -C "$cache" AoE2HDBeta-source
       - uses: actions/upload-artifact@v4
         with:
@@ -104,7 +104,7 @@ jobs:
           unzip -q "$cache/godot.zip" -d "$cache"
           project="$cache/AoE2HDBeta-source/godot_game"
           "$cache/$engine" --headless --path "$project" --import > "$cache/import.log" 2>&1
-          ! grep -E 'SCRIPT ERROR|Failed to load script' "$cache/import.log"
+          if grep -E 'SCRIPT ERROR|Failed to load script' "$cache/import.log"; then exit 1; fi
           "$cache/$engine" --headless --path "$project" --export-pack 'iOS Portable' "$cache/game.pck"
           test -s "$cache/game.pck"
           "$cache/$engine" --headless --main-pack "$cache/game.pck" --quit-after 10 > "$cache/pack.log" 2>&1

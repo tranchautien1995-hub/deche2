@@ -14,6 +14,8 @@ var _start: Button
 var _copy: Button
 var _resume_button: Button
 var _setup: VBoxContainer
+var _population_buttons: HBoxContainer
+var _resource_buttons: HBoxContainer
 var _settings_label: Label
 var _resource_index := GameSetup.RESOURCES.find(GameSetup.DEFAULT_RESOURCES)
 var _population_index := GameSetup.POPULATION_OPTIONS.find(GameSetup.MAX_POPULATION)
@@ -70,9 +72,11 @@ func _ready() -> void:
 	_setup = VBoxContainer.new()
 	_setup.add_child(MenuKit.label("Chủ phòng chọn trước khi tạo phòng", 34 * u, MenuKit.INK))
 	_setup.add_child(MenuKit.label("Population Limit", 35 * u))
-	_setup.add_child(MenuKit.segmented(GameSetup.POPULATION_OPTIONS, _population_index, _pick_population, u, 39.0, 72.0))
+	_population_buttons = MenuKit.segmented(GameSetup.POPULATION_OPTIONS, _population_index, _pick_population, u, 39.0, 72.0)
+	_setup.add_child(_population_buttons)
 	_setup.add_child(MenuKit.label("Starting Resources", 35 * u))
-	_setup.add_child(MenuKit.segmented(GameSetup.RESOURCE_NAMES, _resource_index, _pick_resources, u, 39.0, 72.0))
+	_resource_buttons = MenuKit.segmented(GameSetup.RESOURCE_NAMES, _resource_index, _pick_resources, u, 39.0, 72.0)
+	_setup.add_child(_resource_buttons)
 	v.add_child(_setup)
 	_settings_label = MenuKit.label("", 37 * u, MenuKit.INK, HORIZONTAL_ALIGNMENT_CENTER)
 	v.add_child(_settings_label)
@@ -134,12 +138,12 @@ func _host() -> void:
 
 func _pick_population(index: int) -> void:
 	_population_index = index
-	MenuKit.mark_segment(_setup.get_child(2), index, u)
+	MenuKit.mark_segment(_population_buttons, index, u)
 
 
 func _pick_resources(index: int) -> void:
 	_resource_index = index
-	MenuKit.mark_segment(_setup.get_child(4), index, u)
+	MenuKit.mark_segment(_resource_buttons, index, u)
 
 
 func _join() -> void:

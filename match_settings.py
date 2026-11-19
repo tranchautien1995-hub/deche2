@@ -56,6 +56,9 @@ def apply_match_settings(project, edit):
         ('\tGameSetup.save_resources(_choice.resources)',
          '\tGameSetup.save_resources(_choice.resources)\n\tGameSetup.save_population(_choice.population_limit)'),
     ])
+    edit(scripts / "ui/menu_kit.gd", [
+        ('button(String(options[i]),', 'button(str(options[i]),'),
+    ])
 
     edit(scripts / "main.gd", [
         ('\tvar loading := not is_mp and not pending.is_empty()',

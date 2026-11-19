@@ -34,8 +34,11 @@ func _run() -> void:
 	_check(Defs.DIFFICULTY_ORDER == ["easy", "medium", "hard"], "Three difficulty levels")
 	setup._choice["difficulty"] = "hard"
 	setup._choice["map_size"] = "tiny"
-	setup._choice["population_limit"] = 75
-	setup._choice["resources"] = "high"
+	var offline_caps: HBoxContainer = setup._segments["population_limit"][0]
+	_check(offline_caps.get_child_count() == 6, "Offline population choices render")
+	offline_caps.get_child(2).pressed.emit()
+	var offline_resources: HBoxContainer = setup._segments["resources"][0]
+	offline_resources.get_child(2).pressed.emit()
 	setup._ai = [{"civ": 0, "team": 2}, {"civ": 0, "team": 1}]
 	setup._player_team = 2
 	setup._start()
@@ -49,7 +52,10 @@ func _run() -> void:
 	var guest := RoomCodeScreen.new()
 	add_child(host)
 	add_child(guest)
-	var code := RoomCodeScreen.generate_code(3, 0)
+	_check(host._population_buttons.get_child_count() == 6 and host._resource_buttons.get_child_count() == 3, "Online match choices render")
+	host._population_buttons.get_child(3).pressed.emit()
+	host._resource_buttons.get_child(0).pressed.emit()
+	var code := RoomCodeScreen.generate_code(host._population_index, host._resource_index)
 	_check(RoomCodeScreen.settings_from_code(code) == {"population_limit": 100, "resources": "low"}, "Room code carries host settings")
 	_check(RoomCodeScreen.normalize(code) == code, "Generated code is valid")
 	_check(RoomCodeScreen.normalize("abcd-2345") == "ABCD2345", "Pasted code is normalized")
