@@ -66,7 +66,7 @@ func _run() -> void:
 		_check(map.try_train(town_center, "villager").is_empty(), "Training slot %d accepts a villager" % (i + 1))
 	var badge: Label = hud._training_badges["villager"]
 	_check(badge.text == "15" and badge.visible and map.pop == 15, "Badge reports the exact queued count")
-	var balance := map.stock.food
+	var balance := int(map.stock.food)
 	_check(not map.try_train(town_center, "villager").is_empty() and map.stock.food == balance, "The 16th order is rejected without spending")
 	town_center.queue.pop_front()
 	map.training_changed.emit(town_center)
