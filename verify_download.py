@@ -24,8 +24,8 @@ def main():
         bundle = "Payload/AoE2HDMobile.app/"
         info = plistlib.loads(ipa.read(bundle + "Info.plist"))
         assert info["MinimumOSVersion"] == "15.1"
-        assert info["CFBundleShortVersionString"] == "1.0.4"
-        assert info["CFBundleVersion"] == "5"
+        assert info["CFBundleShortVersionString"] == "1.0.5"
+        assert info["CFBundleVersion"] == "6"
         assert info["CFBundleIdentifier"] == "io.github.tranchautien1995.aoe2hdmobile"
         assert info["UIFileSharingEnabled"] is True
         assert info["LSSupportsOpeningDocumentsInPlace"] is True

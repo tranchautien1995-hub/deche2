@@ -5,6 +5,7 @@ from shutil import copyfile
 from pathlib import Path
 
 from lobby_vi import localize
+from construction import apply_construction
 from match_settings import apply_match_settings
 from mobile_input import apply_mobile
 
@@ -22,11 +23,13 @@ def prepare(project):
     source = Path(__file__).parent
     copyfile(source / "room_code_screen.gd", project / "scripts/ui/room_code_screen.gd")
     copyfile(source / "room_code_test.gd", project / "tests/room_code_test.gd")
-    (project / "tests/room_code_test.tscn").write_text(
-        '[gd_scene load_steps=2 format=3]\n\n'
-        '[ext_resource type="Script" path="res://tests/room_code_test.gd" id="1"]\n\n'
-        '[node name="RoomCodeTest" type="Node"]\nscript = ExtResource("1")\n', encoding="utf-8",
-    )
+    copyfile(source / "construction_test.gd", project / "tests/construction_test.gd")
+    for test in ("room_code_test", "construction_test"):
+        (project / f"tests/{test}.tscn").write_text(
+            '[gd_scene load_steps=2 format=3]\n\n'
+            f'[ext_resource type="Script" path="res://tests/{test}.gd" id="1"]\n\n'
+            f'[node name="{test}" type="Node"]\nscript = ExtResource("1")\n', encoding="utf-8",
+        )
 
     edit(project / "project.godot", [
         ('config/name="Age of Android"', 'config/name="AoE2 HD Mobile"'),
@@ -95,8 +98,8 @@ script_export_mode=2
 
 application/app_store_team_id="0000000000"
 application/bundle_identifier="io.github.tranchautien1995.aoe2hdmobile"
-application/short_version="1.0.4"
-application/version="5"
+application/short_version="1.0.5"
+application/version="6"
 application/min_ios_version="15.1"
 application/targeted_device_family=0
 application/export_project_only=true
@@ -105,6 +108,7 @@ architectures/arm64=true
 """)
     apply_mobile(project, edit)
     apply_match_settings(project, edit)
+    apply_construction(project, edit)
     localize(project, edit)
 
 

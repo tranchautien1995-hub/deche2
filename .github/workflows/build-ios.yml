@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prepare and verify skirmish, online lobby, voices and controls
+      - name: Prepare and verify construction, training and match controls
         shell: bash
         run: |
           set -euo pipefail
@@ -68,6 +68,9 @@ jobs:
             timeout 35s "$godot" --headless --path "$project" res://tests/room_code_test.tscn 2>&1 | tee "$cache/godot-lobby.log"
           grep -F 'LOBBY AND ROOM CODE: 0 failures' "$cache/godot-lobby.log"
           if grep -E 'SCRIPT ERROR|Failed to load script' "$cache/godot-lobby.log"; then exit 1; fi
+          timeout 25s "$godot" --headless --path "$project" res://tests/construction_test.tscn 2>&1 | tee "$cache/godot-construction.log"
+          grep -F "CONSTRUCTION AND TRAINING: 0 failures" "$cache/godot-construction.log"
+          if grep -E "SCRIPT ERROR|Failed to load script" "$cache/godot-construction.log"; then exit 1; fi
           tar -czf game-project.tar.gz --exclude='AoE2HDBeta-source/godot_game/.godot' -C "$cache" AoE2HDBeta-source
       - uses: actions/upload-artifact@v4
         with:
@@ -126,7 +129,7 @@ jobs:
           project = cache / 'AoE2HDBeta-source'
           baseline, = Path('baseline').glob('*.ipa')
           prefix = 'Payload/AoE2HDMobile.app/'
-          target = Path('artifact/AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore.ipa')
+          target = Path('artifact/AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore.ipa')
           with zipfile.ZipFile(baseline) as source, zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as output:
               pack, = [name for name in source.namelist() if name.startswith(prefix) and name.endswith('.pck')]
               for item in source.infolist():
@@ -138,8 +141,8 @@ jobs:
                       info = plistlib.loads(data)
                       assert info['MinimumOSVersion'] == '15.1'
                       assert info['CFBundleIdentifier'] == 'io.github.tranchautien1995.aoe2hdmobile'
-                      info['CFBundleShortVersionString'] = '1.0.4'
-                      info['CFBundleVersion'] = '5'
+                      info['CFBundleShortVersionString'] = '1.0.5'
+                      info['CFBundleVersion'] = '6'
                       data = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
                   elif item.filename in (prefix + 'COPYING.txt', prefix + 'NOTICE.md'):
                       data = (project / ('LICENSE' if item.filename.endswith('COPYING.txt') else 'NOTICE.md')).read_bytes()
@@ -152,7 +155,7 @@ jobs:
           python3 verify_download.py package-verify.zip verified
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore
+          name: AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore
           path: artifact/
           if-no-files-found: error
           retention-days: 30
@@ -209,7 +212,7 @@ jobs:
           plist="$app/Info.plist"
           plutil -lint "$plist"
           test "$(plutil -extract MinimumOSVersion raw "$plist")" = "15.1"
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.4"
+          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "1.0.5"
           test "$(plutil -extract CFBundleIdentifier raw "$plist")" = "io.github.tranchautien1995.aoe2hdmobile"
           test "$(plutil -extract UIFileSharingEnabled raw "$plist")" = "true"
           test "$(plutil -extract LSSupportsOpeningDocumentsInPlace raw "$plist")" = "true"
@@ -228,14 +231,14 @@ jobs:
           cp VOICE-CREDITS.md "$app/VOICE-CREDITS.md"
           printf '%s\n' 'iOS build source and installation instructions:' 'https://github.com/tranchautien1995-hub/deche2' > "$app/Source.txt"
           ditto "$app" "$cache/package/Payload/AoE2HDMobile.app"
-          ipa="$PWD/artifact/AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore.ipa"
+          ipa="$PWD/artifact/AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore.ipa"
           ditto -c -k --norsrc --keepParent "$cache/package/Payload" "$ipa"
           unzip -tq "$ipa"
           (cd artifact && shasum -a 256 *.ipa > SHA256.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AoE2HDMobile-1.0.4-VI-iOS15.1-TrollStore-Xcode
+          name: AoE2HDMobile-1.0.5-VI-iOS15.1-TrollStore-Xcode
           path: artifact/
           if-no-files-found: error
           retention-days: 30
